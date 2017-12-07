@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import pandas as pd
-import sklearn
-from sklearn.ensemble import RandomForestClassifier
 import sys
 import bb_basic as bb
 from random import sample
-from sklearn import metrics
-import matplotlib.pyplot as plt
 import numpy as np
-
+import pandas as pd
+import sklearn
+from sklearn import metrics
+from sklearn.ensemble import RandomForestClassifier
+import matplotlib.pyplot as plt
 
 def main():
     print_help()
