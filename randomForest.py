@@ -7,7 +7,8 @@ import pandas as pd
 import sklearn
 from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier
-import matplotlib.pyplot as plt
+from sklearn.model_selection import KFold
+#import matplotlib.pyplot as plt
 
 def main():
     print_help()
@@ -18,10 +19,10 @@ def main():
     matrix = matrix.fillna(90)
     for cutoff in [100, 500]:
         for features in [["cgContent","dnameInKitPlusSg","h3k27acInSg","h3k27me3InSg","h3k4me3InSg","h3k27acInSgAtGeneBody"], ["amybInTestis3monthOldDeniz","cgContent"], ["amybInTestis3monthOldDeniz","h3k27acInSg"], ["amybInTestis3monthOldDeniz","h3k27me3InSg"], ["amybInTestis3monthOldDeniz","h3k4me3InSg"], ["amybInTestis3monthOldDeniz","h3k27acInSgAtGeneBody"], ["amybInTestis3monthOldDeniz","cgContent","dnameInKitPlusSg","h3k27acInSg","h3k27me3InSg","h3k4me3InSg","h3k27acInSgAtGeneBody"], ["cgContent","h3k27acInSg"], ["h3k27me3InSg","h3k27acInSg"], ["h3k4me3InSg","h3k27acInSg"], ["h3k27acInSgAtGeneBody","h3k27acInSg"], ["amybInTestis3monthOldDeniz","cgContent","h3k27acInSg"], ["amybInTestis3monthOldDeniz","h3k27me3InSg","h3k27acInSg"], ["amybInTestis3monthOldDeniz","h3k4me3InSg","h3k27acInSg"], ["amybInTestis3monthOldDeniz","h3k27acInSgAtGeneBody","h3k27acInSg"], ["fivehmcInSc","cgContent","dnameInKitPlusSg","h3k27acInSg","h3k27me3InSg","h3k4me3InSg","h3k27acInSgAtGeneBody"], ["fivehmcInSc","cgContent","dnameInKitPlusSg","h3k27acInSg","h3k27me3InSg"], ["amybInTestis3monthOldDeniz","fivehmcInSc","cgContent","dnameInKitPlusSg","h3k27acInSg","h3k27me3InSg","h3k4me3InSg","h3k27acInSgAtGeneBody"], ["amybInTestis3monthOldDeniz","fivehmcInSc","cgContent","dnameInKitPlusSg","h3k27acInSg","h3k27me3InSg"], ["amybInTestis3monthOldDeniz","fivehmcInSc","cgContent"]]:
-            run_randomForest(matrix, features, 10, 5, "+".join(features)+"_cutoff_"+str(cutoff))
+            run_randomForest(matrix, features, cutoff, 10, 5, "+".join(features)+"_cutoff_"+str(cutoff))
 
 # --------functions--------
-def run_randomForest(matrix, features, rep_times, fold_times, file_prefix):
+def run_randomForest(matrix, features, cutoff, rep_times, fold_times, file_prefix):
     # get index for train and test, and labels
     index = []
     labels = []
@@ -37,12 +38,13 @@ def run_randomForest(matrix, features, rep_times, fold_times, file_prefix):
     k_fold = KFold(n_splits=fold_times, shuffle=True)
     k = 1
     oob_error = [] # oob error
-    feature_imp = np.zeros(training_set.shape[1]) # feature importance
-    for i1, i2 in k_fold.split(labels):
+    feature_imp = np.zeros(len(features)) # feature importance
+    file_sl = bb.fun_open_file(file_prefix+".SL", "w")
+    for i1, i2 in k_fold.split(index):
         training_index = np.array(index)[i1]
         test_index = np.array(index)[i2]
-        training_set = matrix[features].loc(training_index)
-        test_set = matrix[features].loc(training_index)
+        training_set = matrix[features].iloc[training_index]
+        test_set = matrix[features].iloc[test_index]
         training_labels = labels[training_index]
         test_labels = labels[test_index]
         # fit random forest
@@ -54,9 +56,8 @@ def run_randomForest(matrix, features, rep_times, fold_times, file_prefix):
             feature_imp = feature_imp + rfc.feature_importances_
             test_result = test_result + rfc.predict_proba(test_set)[:,1]
         # write scores and labels for test set in the k's fold validation
-        file_sl = bb.fun_open_file(file_prefix+".SL", "w")
         for i in range(len(test_result)):
-            file_sl.write("%s\t%s\t%s\n"%(matrix[geneName].loc[test_index[i]], test_result[i], test_labels[i]))
+            file_sl.write("%s\t%s\t%s\n"%(matrix.index[test_index[i]], test_result[i]/rep_times, test_labels[i]))
         # write PR curve
         #file_pr = bb.fun_open_file(file_prefix+".PR", "w")
         #precision, recall, _ = metrics.precision_recall_curve(test_labels, test_result)
@@ -75,11 +76,11 @@ def run_randomForest(matrix, features, rep_times, fold_times, file_prefix):
     # write feature importance
     file_fi = bb.fun_open_file(file_prefix+".FI", "w")
     for i in range(training_set.shape[1]):
-        file_fi.write(training_set.columns[i] + "\t" + str(feature_imp[i]/rep_times) + "\n")
+        file_fi.write(training_set.columns[i] + "\t" + str(feature_imp[i]/rep_times/fold_times) + "\n")
     file_fi.close()
     # write out of bag error
     file_oobe = bb.fun_open_file(file_prefix+".OOBE", "w")
-    file_oobe.write(str(sum(oob_error)/rep_times))
+    file_oobe.write(str(sum(oob_error)/rep_times/fold_times))
     # close scores and labels file
     file_sl.close()
 
